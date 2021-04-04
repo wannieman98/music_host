@@ -1,19 +1,18 @@
 from django.shortcuts import render, redirect
-from dotenv import load_dotenv
-from os import getenv
 from rest_framework.views import APIView
 from requests import Request, post
-from rest_framework.response import Response
 from rest_framework import status
-from .util import is_spotify_autenticated, update_or_create_user_tokens
-
+from rest_framework.response import Response
+from .util import update_or_create_user_tokens, is_spotify_authenticated, get_user_tokens
+from api.models import Room
+from dotenv import load_dotenv
+from os import getenv
 
 load_dotenv()
 
 
-# Create your views here.
 class AuthURL(APIView):
-    def get(self, request, format=None):
+    def get(self, request, fornat=None):
         scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing'
 
         url = Request('GET', 'https://accounts.spotify.com/authorize', params={
@@ -25,15 +24,17 @@ class AuthURL(APIView):
 
         return Response({'url': url}, status=status.HTTP_200_OK)
 
+
 def spotify_callback(request, format=None):
     code = request.GET.get('code')
     error = request.GET.get('error')
 
     response = post('https://accounts.spotify.com/api/token', data={
-        'client_id': getenv("clientId"),
-        'code': code,
         'grant_type': 'authorization_code',
-        'clident_secret': getenv("clientSecret")
+        'code': code,
+        'redirect_uri': getenv("redirectUri"),
+        'client_id': getenv("clientId"),
+        'client_secret': getenv("clientSecret")
     }).json()
 
     access_token = response.get('access_token')
@@ -50,7 +51,9 @@ def spotify_callback(request, format=None):
 
     return redirect('frontend:')
 
+
 class IsAuthenticated(APIView):
     def get(self, request, format=None):
-        is_authenticated = is_spotify_autenticated(self.request.session.session_key)
+        is_authenticated = is_spotify_authenticated(
+            self.request.session.session_key)
         return Response({'status': is_authenticated}, status=status.HTTP_200_OK)
